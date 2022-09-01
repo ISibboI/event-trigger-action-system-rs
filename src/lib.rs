@@ -1,8 +1,7 @@
 mod conditions;
-mod triggers;
 mod constructors;
+mod triggers;
 
-pub use crate::triggers::{Triggers, Trigger, TriggerAction, TriggerEvent};
 pub use crate::conditions::{TriggerCondition, TriggerConditionUpdate};
-pub use crate::constructors::{none, event_count, sequence, any_n};
-
+pub use crate::constructors::{any_n, event_count, none, sequence};
+pub use crate::triggers::{Trigger, TriggerAction, TriggerEvent, Triggers};
