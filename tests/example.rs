@@ -1,4 +1,4 @@
-use typed_event_triggers::{
+use event_trigger_action_system::{
     event_count, none, sequence, Trigger, TriggerAction, TriggerConditionUpdate, TriggerEvent,
     Triggers,
 };
