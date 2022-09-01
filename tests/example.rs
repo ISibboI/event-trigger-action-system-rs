@@ -2,8 +2,11 @@ use event_trigger_action_system::{
     event_count, none, sequence, Trigger, TriggerAction, TriggerConditionUpdate, TriggerEvent,
     Triggers,
 };
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 enum GameAction {
     ActivateQuest { id: QuestIdentifier },
     CompleteQuest { id: QuestIdentifier },
@@ -13,11 +16,19 @@ enum GameAction {
 }
 
 #[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 enum GameEvent {
     Action(GameAction),
     KilledMonster { id: MonsterIdentifier },
     FailedMonster { id: MonsterIdentifier },
 }
+
+#[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+struct QuestIdentifier(usize);
+#[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+struct MonsterIdentifier(usize);
 
 impl TriggerAction for GameAction {}
 
@@ -30,11 +41,6 @@ impl From<GameAction> for GameEvent {
         Self::Action(action)
     }
 }
-
-#[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
-struct QuestIdentifier(usize);
-#[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
-struct MonsterIdentifier(usize);
 
 #[test]
 fn test_none() {

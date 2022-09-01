@@ -11,4 +11,8 @@ rust-version = "1.56.1"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-btreemultimap-value-ord = "0.3.1"
+btreemultimap-value-ord = "0.4.0"
+serde = {version = "1.0.144", features = ["derive"], optional = true}
+
+[features]
+serde = ["btreemultimap-value-ord/serde", "dep:serde"]

@@ -1,35 +1,47 @@
 use crate::conditions::{TriggerCondition, TriggerConditionUpdate};
 use btreemultimap_value_ord::BTreeMultiMap;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, VecDeque};
 use std::fmt::Debug;
 
 mod std_lib_implementations;
 
 #[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Triggers<Event: TriggerEvent> {
     trigger_system: TriggerSystem<Event>,
     action_queue: VecDeque<Event::Action>,
 }
 
 #[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 struct TriggerSystem<Event: TriggerEvent> {
     triggers: Vec<Trigger<Event>>,
     subscriptions: BTreeMultiMap<Event, usize>,
 }
 
 #[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Trigger<Event: TriggerEvent> {
     condition: TriggerCondition<Event>,
     actions: Option<Vec<Event::Action>>,
 }
 
 #[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, Ord, PartialOrd)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct TriggerIdentifier(usize);
 
 pub trait TriggerAction: Debug + Clone {}
 
+#[cfg(not(feature = "serde"))]
 pub trait TriggerEvent: From<Self::Action> + Ord + Clone {
     type Action: TriggerAction;
+}
+
+#[cfg(feature = "serde")]
+pub trait TriggerEvent: From<Self::Action> + Ord + Clone {
+    type Action: TriggerAction + Serialize + for<'de> Deserialize<'de>;
 }
 
 impl<Event: TriggerEvent> Triggers<Event> {
