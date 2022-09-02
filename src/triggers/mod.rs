@@ -29,6 +29,7 @@ struct TriggerSystem<Event: TriggerEvent> {
 
 #[derive(Debug, Clone)]
 pub struct Trigger<Event, Action> {
+    pub id_str: String,
     condition: TriggerCondition<Event>,
     actions: Vec<Action>,
 }
@@ -36,6 +37,7 @@ pub struct Trigger<Event, Action> {
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct CompiledTrigger<Event: TriggerEvent> {
+    pub id_str: String,
     condition: CompiledTriggerCondition<Event>,
     actions: Option<Vec<Event::Action>>,
 }
@@ -185,8 +187,16 @@ impl<Event: TriggerEvent> TriggerSystem<Event> {
 }
 
 impl<Event, Action> Trigger<Event, Action> {
-    pub fn new(condition: TriggerCondition<Event>, actions: Vec<Action>) -> Self {
-        Self { condition, actions }
+    pub fn new(
+        id_str: impl ToString,
+        condition: TriggerCondition<Event>,
+        actions: Vec<Action>,
+    ) -> Self {
+        Self {
+            id_str: id_str.to_string(),
+            condition,
+            actions,
+        }
     }
 
     pub fn compile<
@@ -199,6 +209,7 @@ impl<Event, Action> Trigger<Event, Action> {
         action_compiler: &ActionCompiler,
     ) -> CompiledTrigger<CompiledEvent> {
         CompiledTrigger {
+            id_str: self.id_str,
             condition: self.condition.compile(event_compiler),
             actions: Some(self.actions.into_iter().map(action_compiler).collect()),
         }
@@ -206,8 +217,13 @@ impl<Event, Action> Trigger<Event, Action> {
 }
 
 impl<Event: TriggerEvent> CompiledTrigger<Event> {
-    pub fn new(condition: CompiledTriggerCondition<Event>, actions: Vec<Event::Action>) -> Self {
+    pub fn new(
+        id_str: String,
+        condition: CompiledTriggerCondition<Event>,
+        actions: Vec<Event::Action>,
+    ) -> Self {
         Self {
+            id_str,
             condition,
             actions: Some(actions),
         }

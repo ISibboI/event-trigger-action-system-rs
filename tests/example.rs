@@ -119,7 +119,7 @@ impl From<GameAction> for GameEvent {
 
 #[test]
 fn test_none() {
-    let trigger = Trigger::<GameEvent, GameAction>::new(none(), vec![]).compile(&|x| x, &|x| x);
+    let trigger = Trigger::<GameEvent, GameAction>::new("", none(), vec![]).compile(&|x| x, &|x| x);
     assert_eq!(trigger.subscriptions(), vec![]);
     assert_eq!(trigger.progress(), (0.0, 0.0));
 }
@@ -127,7 +127,8 @@ fn test_none() {
 #[test]
 #[should_panic]
 fn test_none_panic() {
-    let mut trigger = Trigger::<GameEvent, GameAction>::new(none(), vec![]).compile(&|x| x, &|x| x);
+    let mut trigger =
+        Trigger::<GameEvent, GameAction>::new("", none(), vec![]).compile(&|x| x, &|x| x);
     trigger.execute_event(&GameEvent::KilledMonster {
         id: MonsterHandle(0),
     });
@@ -136,6 +137,7 @@ fn test_none_panic() {
 #[test]
 fn test_repeated_action() {
     let mut trigger = Trigger::new(
+        "",
         event_count(
             GameEvent::KilledMonster {
                 id: MonsterHandle(0),
@@ -200,9 +202,12 @@ fn test_repeated_action() {
 
 #[test]
 fn test_composed_none() {
-    let trigger =
-        Trigger::<(), ()>::new(none() & none() | none() & none() | none() & none(), vec![])
-            .compile(&|x| x, &|x| x);
+    let trigger = Trigger::<(), ()>::new(
+        "",
+        none() & none() | none() & none() | none() & none(),
+        vec![],
+    )
+    .compile(&|x| x, &|x| x);
     dbg!(&trigger);
     assert!(trigger.condition().completed());
     assert_eq!(trigger.progress(), (0.0, 0.0));
@@ -211,9 +216,12 @@ fn test_composed_none() {
 #[test]
 #[should_panic]
 fn test_composed_none_panic() {
-    let mut trigger =
-        Trigger::<(), ()>::new(none() & none() | none() & none() | none() & none(), vec![])
-            .compile(&|x| x, &|x| x);
+    let mut trigger = Trigger::<(), ()>::new(
+        "",
+        none() & none() | none() & none() | none() & none(),
+        vec![],
+    )
+    .compile(&|x| x, &|x| x);
     trigger.execute_event(&());
 }
 
@@ -221,10 +229,12 @@ fn test_composed_none_panic() {
 fn test_complex() {
     let mut triggers = Triggers::new(vec![
         Trigger::new(
+            "",
             none(),
             vec![GameAction::ActivateQuest { id: QuestHandle(0) }],
         ),
         Trigger::new(
+            "",
             event_count(
                 GameEvent::KilledMonster {
                     id: MonsterHandle(0),
@@ -234,6 +244,7 @@ fn test_complex() {
             vec![GameAction::CompleteQuest { id: QuestHandle(0) }],
         ),
         Trigger::new(
+            "",
             event_count(
                 GameEvent::KilledMonster {
                     id: MonsterHandle(0),
@@ -243,6 +254,7 @@ fn test_complex() {
             vec![GameAction::ActivateQuest { id: QuestHandle(1) }],
         ),
         Trigger::new(
+            "",
             event_count(
                 GameEvent::Action(GameAction::ActivateQuest { id: QuestHandle(1) }),
                 1,
@@ -250,12 +262,14 @@ fn test_complex() {
             vec![GameAction::FailQuest { id: QuestHandle(2) }],
         ),
         Trigger::new(
+            "",
             none(),
             vec![GameAction::ActivateMonster {
                 id: MonsterHandle(0),
             }],
         ),
         Trigger::new(
+            "",
             sequence(vec![
                 event_count(
                     GameEvent::FailedMonster {
@@ -335,12 +349,14 @@ fn test_complex() {
 fn test_geq() {
     let mut triggers = Triggers::new(vec![
         Trigger::new(
+            "",
             geq(GameEvent::HealthChanged { health: 10 }),
             vec![GameAction::ActivateMonster {
                 id: MonsterHandle(0),
             }],
         ),
         Trigger::new(
+            "",
             sequence(vec![
                 event_count(
                     GameEvent::Action(GameAction::ActivateMonster {
