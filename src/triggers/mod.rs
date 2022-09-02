@@ -155,6 +155,10 @@ impl<Event: TriggerEvent> CompiledTriggers<Event> {
         self.action_queue.pop_front()
     }
 
+    pub fn consume_all_actions(&mut self) -> impl '_ + Iterator<Item = Event::Action> {
+        self.action_queue.drain(0..self.action_queue.len())
+    }
+
     pub fn progress(&self, handle: TriggerHandle) -> Option<(f64, f64)> {
         self.trigger_system
             .triggers
