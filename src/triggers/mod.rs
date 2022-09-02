@@ -145,6 +145,13 @@ impl<Event: TriggerEvent> CompiledTriggers<Event> {
     pub fn consume_action(&mut self) -> Option<Event::Action> {
         self.action_queue.pop_front()
     }
+
+    pub fn progress(&self, handle: TriggerHandle) -> Option<(f64, f64)> {
+        self.trigger_system
+            .triggers
+            .get(handle.0)
+            .map(|trigger| trigger.progress())
+    }
 }
 
 impl<Event: TriggerEvent> TriggerSystem<Event> {
