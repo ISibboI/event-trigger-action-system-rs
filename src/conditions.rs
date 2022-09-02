@@ -3,9 +3,34 @@ use crate::triggers::TriggerEvent;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
+pub enum TriggerCondition<Event> {
+    None,
+    EventCount {
+        event: Event,
+        required: usize,
+    },
+    Geq {
+        event: Event,
+    },
+    Sequence {
+        conditions: Vec<TriggerCondition<Event>>,
+    },
+    And {
+        conditions: Vec<TriggerCondition<Event>>,
+    },
+    Or {
+        conditions: Vec<TriggerCondition<Event>>,
+    },
+    AnyN {
+        conditions: Vec<TriggerCondition<Event>>,
+        n: usize,
+    },
+}
+
+#[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct TriggerCondition<Event: TriggerEvent> {
-    pub(crate) kind: TriggerConditionKind<Event>,
+pub struct CompiledTriggerCondition<Event: TriggerEvent> {
+    pub(crate) kind: CompiledTriggerConditionKind<Event>,
     pub(crate) completed: bool,
     pub(crate) required_progress: f64,
     pub(crate) current_progress: f64,
@@ -13,7 +38,7 @@ pub struct TriggerCondition<Event: TriggerEvent> {
 
 #[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum TriggerConditionKind<Event: TriggerEvent> {
+pub enum CompiledTriggerConditionKind<Event: TriggerEvent> {
     None,
     EventCount {
         identifier: Event::Identifier,
@@ -26,19 +51,19 @@ pub enum TriggerConditionKind<Event: TriggerEvent> {
     },
     Sequence {
         current_index: usize,
-        conditions: Vec<TriggerCondition<Event>>,
+        conditions: Vec<CompiledTriggerCondition<Event>>,
     },
     And {
-        conditions: Vec<TriggerCondition<Event>>,
-        fulfilled_conditions: Vec<TriggerCondition<Event>>,
+        conditions: Vec<CompiledTriggerCondition<Event>>,
+        fulfilled_conditions: Vec<CompiledTriggerCondition<Event>>,
     },
     Or {
-        conditions: Vec<TriggerCondition<Event>>,
-        fulfilled_conditions: Vec<TriggerCondition<Event>>,
+        conditions: Vec<CompiledTriggerCondition<Event>>,
+        fulfilled_conditions: Vec<CompiledTriggerCondition<Event>>,
     },
     AnyN {
-        conditions: Vec<TriggerCondition<Event>>,
-        fulfilled_conditions: Vec<TriggerCondition<Event>>,
+        conditions: Vec<CompiledTriggerCondition<Event>>,
+        fulfilled_conditions: Vec<CompiledTriggerCondition<Event>>,
         n: usize,
     },
 }
@@ -50,8 +75,93 @@ pub enum TriggerConditionUpdate<Identifier> {
     Unsubscribe(Identifier),
 }
 
-impl<Event: TriggerEvent> TriggerCondition<Event> {
-    pub(crate) fn new(kind: TriggerConditionKind<Event>) -> Self {
+impl<Event> TriggerCondition<Event> {
+    pub fn compile<EventCompiler: Fn(Event) -> CompiledEvent, CompiledEvent: TriggerEvent>(
+        self,
+        event_compiler: &EventCompiler,
+    ) -> CompiledTriggerCondition<CompiledEvent> {
+        CompiledTriggerCondition::new(match self {
+            TriggerCondition::None => CompiledTriggerConditionKind::None,
+            TriggerCondition::EventCount { event, required } => {
+                CompiledTriggerConditionKind::EventCount {
+                    identifier: event_compiler(event).identifier(),
+                    count: 0,
+                    required,
+                }
+            }
+            TriggerCondition::Geq { event } => CompiledTriggerConditionKind::Geq {
+                event: event_compiler(event),
+                fulfilled: false,
+            },
+            TriggerCondition::Sequence { conditions } => {
+                let conditions = conditions
+                    .into_iter()
+                    .map(|condition| {
+                        let condition = condition.compile(event_compiler);
+                        assert!(!condition.completed()); // sequences are not allowed to contain `None` conditions.
+                        condition
+                    })
+                    .collect();
+                CompiledTriggerConditionKind::Sequence {
+                    current_index: 0,
+                    conditions,
+                }
+            }
+            TriggerCondition::And { conditions } => {
+                let mut compiled_conditions = Vec::new();
+                let mut compiled_fulfilled_conditions = Vec::new();
+                for condition in conditions {
+                    let compiled_condition = condition.compile(event_compiler);
+                    if compiled_condition.completed() {
+                        compiled_fulfilled_conditions.push(compiled_condition);
+                    } else {
+                        compiled_conditions.push(compiled_condition);
+                    }
+                }
+                CompiledTriggerConditionKind::And {
+                    conditions: compiled_conditions,
+                    fulfilled_conditions: compiled_fulfilled_conditions,
+                }
+            }
+            TriggerCondition::Or { conditions } => {
+                let mut compiled_conditions = Vec::new();
+                let mut compiled_fulfilled_conditions = Vec::new();
+                for condition in conditions {
+                    let compiled_condition = condition.compile(event_compiler);
+                    if compiled_condition.completed() {
+                        compiled_fulfilled_conditions.push(compiled_condition);
+                    } else {
+                        compiled_conditions.push(compiled_condition);
+                    }
+                }
+                CompiledTriggerConditionKind::Or {
+                    conditions: compiled_conditions,
+                    fulfilled_conditions: compiled_fulfilled_conditions,
+                }
+            }
+            TriggerCondition::AnyN { conditions, n } => {
+                let mut compiled_conditions = Vec::new();
+                let mut compiled_fulfilled_conditions = Vec::new();
+                for condition in conditions {
+                    let compiled_condition = condition.compile(event_compiler);
+                    if compiled_condition.completed() {
+                        compiled_fulfilled_conditions.push(compiled_condition);
+                    } else {
+                        compiled_conditions.push(compiled_condition);
+                    }
+                }
+                CompiledTriggerConditionKind::AnyN {
+                    conditions: compiled_conditions,
+                    fulfilled_conditions: compiled_fulfilled_conditions,
+                    n,
+                }
+            }
+        })
+    }
+}
+
+impl<Event: TriggerEvent> CompiledTriggerCondition<Event> {
+    pub(crate) fn new(kind: CompiledTriggerConditionKind<Event>) -> Self {
         Self {
             required_progress: kind.required_progress(),
             current_progress: 0.0,
@@ -79,9 +189,10 @@ impl<Event: TriggerEvent> TriggerCondition<Event> {
     ) -> (Vec<TriggerConditionUpdate<Event::Identifier>>, bool, f64) {
         assert!(!self.completed);
         let (trigger_condition_update, result, current_progress) = self.kind.execute_event(event);
+        assert!(current_progress >= self.current_progress - 1e-6);
         self.current_progress = current_progress;
         self.completed = result;
-        (trigger_condition_update, result, current_progress)
+        (trigger_condition_update, result, self.current_progress)
     }
 
     pub(crate) fn subscriptions(&self) -> Vec<Event::Identifier> {
@@ -90,22 +201,22 @@ impl<Event: TriggerEvent> TriggerCondition<Event> {
         }
 
         match &self.kind {
-            TriggerConditionKind::None => Default::default(),
-            TriggerConditionKind::EventCount { identifier, .. } => vec![identifier.clone()],
-            TriggerConditionKind::Geq { event, .. } => vec![event.identifier()],
-            TriggerConditionKind::Sequence {
+            CompiledTriggerConditionKind::None => Default::default(),
+            CompiledTriggerConditionKind::EventCount { identifier, .. } => vec![identifier.clone()],
+            CompiledTriggerConditionKind::Geq { event, .. } => vec![event.identifier()],
+            CompiledTriggerConditionKind::Sequence {
                 current_index,
                 conditions,
             } => conditions[*current_index].subscriptions(),
-            TriggerConditionKind::And { conditions, .. } => conditions
+            CompiledTriggerConditionKind::And { conditions, .. } => conditions
                 .iter()
                 .flat_map(|condition| condition.subscriptions())
                 .collect(),
-            TriggerConditionKind::Or { conditions, .. } => conditions
+            CompiledTriggerConditionKind::Or { conditions, .. } => conditions
                 .iter()
                 .flat_map(|condition| condition.subscriptions())
                 .collect(),
-            TriggerConditionKind::AnyN { conditions, .. } => conditions
+            CompiledTriggerConditionKind::AnyN { conditions, .. } => conditions
                 .iter()
                 .flat_map(|condition| condition.subscriptions())
                 .collect(),
@@ -113,17 +224,17 @@ impl<Event: TriggerEvent> TriggerCondition<Event> {
     }
 }
 
-impl<Event: TriggerEvent> TriggerConditionKind<Event> {
+impl<Event: TriggerEvent> CompiledTriggerConditionKind<Event> {
     fn required_progress(&self) -> f64 {
         match self {
-            TriggerConditionKind::None => 0.0,
-            TriggerConditionKind::EventCount { required, .. } => *required as f64,
-            TriggerConditionKind::Geq { .. } => 1.0,
-            TriggerConditionKind::Sequence { conditions, .. } => conditions
+            CompiledTriggerConditionKind::None => 0.0,
+            CompiledTriggerConditionKind::EventCount { required, .. } => *required as f64,
+            CompiledTriggerConditionKind::Geq { .. } => 1.0,
+            CompiledTriggerConditionKind::Sequence { conditions, .. } => conditions
                 .iter()
                 .map(|condition| condition.required_progress())
                 .sum(),
-            TriggerConditionKind::And {
+            CompiledTriggerConditionKind::And {
                 conditions,
                 fulfilled_conditions,
             } => conditions
@@ -131,7 +242,7 @@ impl<Event: TriggerEvent> TriggerConditionKind<Event> {
                 .chain(fulfilled_conditions.iter())
                 .map(|condition| condition.required_progress())
                 .sum(),
-            TriggerConditionKind::Or {
+            CompiledTriggerConditionKind::Or {
                 conditions,
                 fulfilled_conditions,
             } => conditions
@@ -140,7 +251,7 @@ impl<Event: TriggerEvent> TriggerConditionKind<Event> {
                 .map(|condition| condition.required_progress())
                 .min_by(|a, b| a.partial_cmp(b).unwrap())
                 .unwrap_or(0.0),
-            TriggerConditionKind::AnyN {
+            CompiledTriggerConditionKind::AnyN {
                 conditions,
                 fulfilled_conditions,
                 n,
@@ -158,18 +269,18 @@ impl<Event: TriggerEvent> TriggerConditionKind<Event> {
 
     fn completed(&self) -> bool {
         match self {
-            TriggerConditionKind::None => true,
-            TriggerConditionKind::EventCount {
+            CompiledTriggerConditionKind::None => true,
+            CompiledTriggerConditionKind::EventCount {
                 count, required, ..
             } => count >= required,
-            TriggerConditionKind::Geq { fulfilled, .. } => *fulfilled,
-            TriggerConditionKind::Sequence {
+            CompiledTriggerConditionKind::Geq { fulfilled, .. } => *fulfilled,
+            CompiledTriggerConditionKind::Sequence {
                 current_index,
                 conditions,
             } => *current_index >= conditions.len(),
-            TriggerConditionKind::And { conditions, .. } => conditions.is_empty(),
-            TriggerConditionKind::Or { conditions, .. } => conditions.is_empty(),
-            TriggerConditionKind::AnyN {
+            CompiledTriggerConditionKind::And { conditions, .. } => conditions.is_empty(),
+            CompiledTriggerConditionKind::Or { conditions, .. } => conditions.is_empty(),
+            CompiledTriggerConditionKind::AnyN {
                 fulfilled_conditions,
                 n,
                 ..
@@ -182,15 +293,15 @@ impl<Event: TriggerEvent> TriggerConditionKind<Event> {
         event: &Event,
     ) -> (Vec<TriggerConditionUpdate<Event::Identifier>>, bool, f64) {
         match self {
-            TriggerConditionKind::None => (Default::default(), true, 0.0),
-            TriggerConditionKind::EventCount {
+            CompiledTriggerConditionKind::None => (Default::default(), true, 0.0),
+            CompiledTriggerConditionKind::EventCount {
                 identifier: counted_identifier,
                 count,
                 required,
             } => {
+                assert!(count < required);
                 let identifier = event.identifier();
                 if *counted_identifier == identifier {
-                    assert!(count < required);
                     *count += 1;
                 }
 
@@ -207,29 +318,28 @@ impl<Event: TriggerEvent> TriggerConditionKind<Event> {
                     (Default::default(), count >= required, *count as f64)
                 }
             }
-            TriggerConditionKind::Geq {
+            CompiledTriggerConditionKind::Geq {
                 event: reference_event,
                 fulfilled,
             } => {
                 assert!(!*fulfilled);
                 if event.value_geq(reference_event).unwrap() {
                     *fulfilled = true;
-                    (
+                    return (
                         vec![TriggerConditionUpdate::Unsubscribe(
                             reference_event.identifier(),
                         )],
                         true,
                         1.0,
-                    )
-                } else {
-                    (
-                        vec![],
-                        false,
-                        event.value_geq_progress(reference_event).unwrap(),
-                    )
+                    );
                 }
+                (
+                    vec![],
+                    false,
+                    event.value_geq_progress(reference_event).unwrap(),
+                )
             }
-            TriggerConditionKind::Sequence {
+            CompiledTriggerConditionKind::Sequence {
                 current_index,
                 conditions,
             } => {
@@ -269,7 +379,7 @@ impl<Event: TriggerEvent> TriggerConditionKind<Event> {
                     )
                 }
             }
-            TriggerConditionKind::And {
+            CompiledTriggerConditionKind::And {
                 conditions,
                 fulfilled_conditions,
             } => {
@@ -300,7 +410,7 @@ impl<Event: TriggerEvent> TriggerConditionKind<Event> {
                     current_progress,
                 )
             }
-            TriggerConditionKind::Or {
+            CompiledTriggerConditionKind::Or {
                 conditions,
                 fulfilled_conditions,
             } => {
@@ -340,7 +450,7 @@ impl<Event: TriggerEvent> TriggerConditionKind<Event> {
                     current_progress * self.required_progress(),
                 )
             }
-            TriggerConditionKind::AnyN {
+            CompiledTriggerConditionKind::AnyN {
                 conditions,
                 fulfilled_conditions,
                 n,

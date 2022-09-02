@@ -1,4 +1,5 @@
-use crate::conditions::{TriggerCondition, TriggerConditionUpdate};
+use crate::conditions::{CompiledTriggerCondition, TriggerConditionUpdate};
+use crate::TriggerCondition;
 use btreemultimap_value_ord::BTreeMultiMap;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -8,8 +9,13 @@ use std::fmt::Debug;
 mod std_lib_implementations;
 
 #[derive(Debug)]
+pub struct Triggers<Event, Action> {
+    triggers: Vec<Trigger<Event, Action>>,
+}
+
+#[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct Triggers<Event: TriggerEvent> {
+pub struct CompiledTriggers<Event: TriggerEvent> {
     trigger_system: TriggerSystem<Event>,
     action_queue: VecDeque<Event::Action>,
 }
@@ -17,14 +23,20 @@ pub struct Triggers<Event: TriggerEvent> {
 #[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 struct TriggerSystem<Event: TriggerEvent> {
-    triggers: Vec<Trigger<Event>>,
+    triggers: Vec<CompiledTrigger<Event>>,
     subscriptions: BTreeMultiMap<Event::Identifier, usize>,
 }
 
 #[derive(Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct Trigger<Event: TriggerEvent> {
+pub struct Trigger<Event, Action> {
     condition: TriggerCondition<Event>,
+    actions: Vec<Action>,
+}
+
+#[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct CompiledTrigger<Event: TriggerEvent> {
+    condition: CompiledTriggerCondition<Event>,
     actions: Option<Vec<Event::Action>>,
 }
 
@@ -64,8 +76,31 @@ pub trait TriggerEvent: From<Self::Action> {
     fn value_geq_progress(&self, other: &Self) -> Option<f64>;
 }
 
-impl<Event: TriggerEvent> Triggers<Event> {
-    pub fn new(mut triggers: Vec<Trigger<Event>>) -> Self {
+impl<Event, Action> Triggers<Event, Action> {
+    pub fn new(triggers: Vec<Trigger<Event, Action>>) -> Self {
+        Self { triggers }
+    }
+
+    pub fn compile<
+        EventCompiler: Fn(Event) -> CompiledEvent,
+        CompiledEvent: TriggerEvent,
+        ActionCompiler: Fn(Action) -> CompiledEvent::Action,
+    >(
+        self,
+        event_compiler: &EventCompiler,
+        action_compiler: &ActionCompiler,
+    ) -> CompiledTriggers<CompiledEvent> {
+        CompiledTriggers::new(
+            self.triggers
+                .into_iter()
+                .map(|trigger| trigger.compile(event_compiler, action_compiler))
+                .collect(),
+        )
+    }
+}
+
+impl<Event: TriggerEvent> CompiledTriggers<Event> {
+    pub fn new(mut triggers: Vec<CompiledTrigger<Event>>) -> Self {
         let mut initial_actions = Vec::new();
         let subscriptions = triggers
             .iter_mut()
@@ -149,8 +184,29 @@ impl<Event: TriggerEvent> TriggerSystem<Event> {
     }
 }
 
-impl<Event: TriggerEvent> Trigger<Event> {
-    pub fn new(condition: TriggerCondition<Event>, actions: Vec<Event::Action>) -> Self {
+impl<Event, Action> Trigger<Event, Action> {
+    pub fn new(condition: TriggerCondition<Event>, actions: Vec<Action>) -> Self {
+        Self { condition, actions }
+    }
+
+    pub fn compile<
+        EventCompiler: Fn(Event) -> CompiledEvent,
+        CompiledEvent: TriggerEvent,
+        ActionCompiler: Fn(Action) -> CompiledEvent::Action,
+    >(
+        self,
+        event_compiler: &EventCompiler,
+        action_compiler: &ActionCompiler,
+    ) -> CompiledTrigger<CompiledEvent> {
+        CompiledTrigger {
+            condition: self.condition.compile(event_compiler),
+            actions: Some(self.actions.into_iter().map(action_compiler).collect()),
+        }
+    }
+}
+
+impl<Event: TriggerEvent> CompiledTrigger<Event> {
+    pub fn new(condition: CompiledTriggerCondition<Event>, actions: Vec<Event::Action>) -> Self {
         Self {
             condition,
             actions: Some(actions),
@@ -183,7 +239,7 @@ impl<Event: TriggerEvent> Trigger<Event> {
         )
     }
 
-    pub fn condition(&self) -> &TriggerCondition<Event> {
+    pub fn condition(&self) -> &CompiledTriggerCondition<Event> {
         &self.condition
     }
 

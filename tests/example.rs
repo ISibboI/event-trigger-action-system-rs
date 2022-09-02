@@ -119,7 +119,7 @@ impl From<GameAction> for GameEvent {
 
 #[test]
 fn test_none() {
-    let trigger = Trigger::<GameEvent>::new(none(), vec![]);
+    let trigger = Trigger::<GameEvent, GameAction>::new(none(), vec![]).compile(&|x| x, &|x| x);
     assert_eq!(trigger.subscriptions(), vec![]);
     assert_eq!(trigger.progress(), (0.0, 0.0));
 }
@@ -127,7 +127,7 @@ fn test_none() {
 #[test]
 #[should_panic]
 fn test_none_panic() {
-    let mut trigger = Trigger::<GameEvent>::new(none(), vec![]);
+    let mut trigger = Trigger::<GameEvent, GameAction>::new(none(), vec![]).compile(&|x| x, &|x| x);
     trigger.execute_event(&GameEvent::KilledMonster {
         id: MonsterHandle(0),
     });
@@ -143,7 +143,8 @@ fn test_repeated_action() {
             2,
         ),
         vec![GameAction::CompleteQuest { id: QuestHandle(0) }],
-    );
+    )
+    .compile(&|x| x, &|x| x);
     assert_eq!(
         trigger.subscriptions(),
         vec![GameEventIdentifier::KilledMonster {
@@ -199,7 +200,10 @@ fn test_repeated_action() {
 
 #[test]
 fn test_composed_none() {
-    let trigger = Trigger::<()>::new(none() & none() | none() & none() | none() & none(), vec![]);
+    let trigger =
+        Trigger::<(), ()>::new(none() & none() | none() & none() | none() & none(), vec![])
+            .compile(&|x| x, &|x| x);
+    dbg!(&trigger);
     assert!(trigger.condition().completed());
     assert_eq!(trigger.progress(), (0.0, 0.0));
 }
@@ -208,7 +212,8 @@ fn test_composed_none() {
 #[should_panic]
 fn test_composed_none_panic() {
     let mut trigger =
-        Trigger::<()>::new(none() & none() | none() & none() | none() & none(), vec![]);
+        Trigger::<(), ()>::new(none() & none() | none() & none() | none() & none(), vec![])
+            .compile(&|x| x, &|x| x);
     trigger.execute_event(&());
 }
 
@@ -269,7 +274,8 @@ fn test_complex() {
                 id: MonsterHandle(3),
             }],
         ),
-    ]);
+    ])
+    .compile(&|x| x, &|x| x);
     assert_eq!(
         triggers.consume_action(),
         Some(GameAction::ActivateQuest { id: QuestHandle(0) })
@@ -351,7 +357,8 @@ fn test_geq() {
                 id: MonsterHandle(0),
             }],
         ),
-    ]);
+    ])
+    .compile(&|x| x, &|x| x);
     assert_eq!(triggers.consume_action(), None);
 
     triggers.execute_event(&GameEvent::KilledMonster {
