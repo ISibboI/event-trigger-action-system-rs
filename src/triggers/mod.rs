@@ -18,7 +18,7 @@ pub struct Triggers<Event: TriggerEvent> {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 struct TriggerSystem<Event: TriggerEvent> {
     triggers: Vec<Trigger<Event>>,
-    subscriptions: BTreeMultiMap<Event, usize>,
+    subscriptions: BTreeMultiMap<Event::Identifier, usize>,
 }
 
 #[derive(Debug)]
@@ -30,18 +30,38 @@ pub struct Trigger<Event: TriggerEvent> {
 
 #[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, Ord, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct TriggerIdentifier(usize);
+pub struct TriggerHandle(usize);
 
 pub trait TriggerAction: Debug + Clone {}
 
+pub trait TriggerIdentifier: Debug + Ord + Clone {}
+
 #[cfg(not(feature = "serde"))]
-pub trait TriggerEvent: From<Self::Action> + Ord + Clone {
+pub trait TriggerEvent: From<Self::Action> {
     type Action: TriggerAction;
+    type Identifier: TriggerIdentifier;
+
+    fn identifier(&self) -> Self::Identifier;
+
+    fn value_geq(&self, other: &Self) -> Option<bool>;
+
+    /// Returns a number between 0.0 and 1.0 indicating how close the condition `value_geq` is to being fulfilled.
+    /// Except if the events are not compatible, then `None` is returned.
+    fn value_geq_progress(&self, other: &Self) -> Option<f64>;
 }
 
 #[cfg(feature = "serde")]
-pub trait TriggerEvent: From<Self::Action> + Ord + Clone {
+pub trait TriggerEvent: From<Self::Action> {
     type Action: TriggerAction + Serialize + for<'de> Deserialize<'de>;
+    type Identifier: TriggerIdentifier + Serialize + for<'de> Deserialize<'de>;
+
+    fn identifier(&self) -> Self::Identifier;
+
+    fn value_geq(&self, other: &Self) -> Option<bool>;
+
+    /// Returns a number between 0.0 and 1.0 indicating how close the condition `value_geq` is to being fulfilled.
+    /// Except if the events are not compatible, then `None` is returned.
+    fn value_geq_progress(&self, other: &Self) -> Option<f64>;
 }
 
 impl<Event: TriggerEvent> Triggers<Event> {
@@ -58,7 +78,7 @@ impl<Event: TriggerEvent> Triggers<Event> {
                 }
                 subscriptions
                     .into_iter()
-                    .map(move |event_type| (event_type, id))
+                    .map(move |identifier| (identifier, id))
             })
             .collect();
         let mut trigger_system = TriggerSystem {
@@ -93,9 +113,10 @@ impl<Event: TriggerEvent> Triggers<Event> {
 impl<Event: TriggerEvent> TriggerSystem<Event> {
     fn execute_event(&mut self, event: &Event) -> Vec<Event::Action> {
         let mut all_actions = Vec::new();
+        let identifier = event.identifier();
         let trigger_indices: Vec<_> = self
             .subscriptions
-            .get(event)
+            .get(&identifier)
             .unwrap_or(&BTreeMap::new())
             .keys()
             .copied()
@@ -107,11 +128,12 @@ impl<Event: TriggerEvent> TriggerSystem<Event> {
 
             for trigger_condition_update in trigger_condition_updates {
                 match trigger_condition_update {
-                    TriggerConditionUpdate::Subscribe(event) => {
-                        self.subscriptions.insert(event, trigger_index);
+                    TriggerConditionUpdate::Subscribe(identifier) => {
+                        self.subscriptions.insert(identifier.clone(), trigger_index);
                     }
-                    TriggerConditionUpdate::Unsubscribe(event) => {
-                        self.subscriptions.remove_key_value(&event, &trigger_index);
+                    TriggerConditionUpdate::Unsubscribe(identifier) => {
+                        self.subscriptions
+                            .remove_key_value(&identifier, &trigger_index);
                     }
                 }
             }
@@ -135,14 +157,17 @@ impl<Event: TriggerEvent> Trigger<Event> {
         }
     }
 
-    pub fn subscriptions(&self) -> Vec<Event> {
+    pub fn subscriptions(&self) -> Vec<Event::Identifier> {
         self.condition.subscriptions()
     }
 
     pub fn execute_event(
         &mut self,
         event: &Event,
-    ) -> (Vec<Event::Action>, Vec<TriggerConditionUpdate<Event>>) {
+    ) -> (
+        Vec<Event::Action>,
+        Vec<TriggerConditionUpdate<Event::Identifier>>,
+    ) {
         let (trigger_condition_updates, result, _) = self.condition.execute_event(event);
         if result {
             (self.actions.take().unwrap(), trigger_condition_updates)
@@ -175,7 +200,7 @@ impl<Event: TriggerEvent> Trigger<Event> {
     }
 }
 
-impl From<usize> for TriggerIdentifier {
+impl From<usize> for TriggerHandle {
     fn from(value: usize) -> Self {
         Self(value)
     }

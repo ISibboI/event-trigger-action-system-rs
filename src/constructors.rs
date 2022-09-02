@@ -1,39 +1,47 @@
 use crate::conditions::TriggerConditionKind;
-use crate::TriggerCondition;
+use crate::{TriggerCondition, TriggerEvent};
 use std::ops::{BitAnd, BitOr};
 
-pub fn none<Event>() -> TriggerCondition<Event> {
+pub fn none<Event: TriggerEvent>() -> TriggerCondition<Event> {
     TriggerCondition::new(TriggerConditionKind::None)
 }
 
-pub fn event_count<Event>(event: Event, required: usize) -> TriggerCondition<Event> {
+pub fn event_count<Event: TriggerEvent>(event: Event, required: usize) -> TriggerCondition<Event> {
     TriggerCondition::new(TriggerConditionKind::EventCount {
-        event,
+        identifier: event.identifier(),
         required,
         count: 0,
     })
 }
 
-pub fn sequence<Event>(conditions: Vec<TriggerCondition<Event>>) -> TriggerCondition<Event> {
+pub fn geq<Event: TriggerEvent>(event: Event) -> TriggerCondition<Event> {
+    TriggerCondition::new(TriggerConditionKind::Geq {
+        event,
+        fulfilled: false,
+    })
+}
+
+pub fn sequence<Event: TriggerEvent>(
+    conditions: impl IntoIterator<Item = TriggerCondition<Event>>,
+) -> TriggerCondition<Event> {
     TriggerCondition::new(TriggerConditionKind::Sequence {
-        conditions,
+        conditions: conditions.into_iter().collect(),
         current_index: 0,
     })
 }
 
-pub fn any_n<Event>(conditions: Vec<TriggerCondition<Event>>, n: usize) -> TriggerCondition<Event> {
-    if n == 0 {
-        none()
-    } else {
-        TriggerCondition::new(TriggerConditionKind::AnyN {
-            conditions,
-            fulfilled_conditions: Default::default(),
-            n,
-        })
-    }
+pub fn any_n<Event: TriggerEvent>(
+    conditions: impl IntoIterator<Item = TriggerCondition<Event>>,
+    n: usize,
+) -> TriggerCondition<Event> {
+    TriggerCondition::new(TriggerConditionKind::AnyN {
+        conditions: conditions.into_iter().collect(),
+        fulfilled_conditions: Default::default(),
+        n,
+    })
 }
 
-impl<Event> BitAnd for TriggerCondition<Event> {
+impl<Event: TriggerEvent> BitAnd for TriggerCondition<Event> {
     type Output = TriggerCondition<Event>;
 
     fn bitand(self, rhs: Self) -> Self::Output {
@@ -158,7 +166,7 @@ impl<Event> BitAnd for TriggerCondition<Event> {
     }
 }
 
-impl<Event> BitOr for TriggerCondition<Event> {
+impl<Event: TriggerEvent> BitOr for TriggerCondition<Event> {
     type Output = TriggerCondition<Event>;
 
     fn bitor(self, rhs: Self) -> Self::Output {

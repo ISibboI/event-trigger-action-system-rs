@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct TriggerCondition<Event> {
+pub struct TriggerCondition<Event: TriggerEvent> {
     pub(crate) kind: TriggerConditionKind<Event>,
     pub(crate) completed: bool,
     pub(crate) required_progress: f64,
@@ -13,12 +13,16 @@ pub struct TriggerCondition<Event> {
 
 #[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum TriggerConditionKind<Event> {
+pub enum TriggerConditionKind<Event: TriggerEvent> {
     None,
     EventCount {
-        event: Event,
+        identifier: Event::Identifier,
         count: usize,
         required: usize,
+    },
+    Geq {
+        event: Event,
+        fulfilled: bool,
     },
     Sequence {
         current_index: usize,
@@ -41,12 +45,12 @@ pub enum TriggerConditionKind<Event> {
 
 #[derive(Debug, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum TriggerConditionUpdate<Event> {
-    Subscribe(Event),
-    Unsubscribe(Event),
+pub enum TriggerConditionUpdate<Identifier> {
+    Subscribe(Identifier),
+    Unsubscribe(Identifier),
 }
 
-impl<Event> TriggerCondition<Event> {
+impl<Event: TriggerEvent> TriggerCondition<Event> {
     pub(crate) fn new(kind: TriggerConditionKind<Event>) -> Self {
         Self {
             required_progress: kind.required_progress(),
@@ -68,17 +72,27 @@ impl<Event> TriggerCondition<Event> {
     pub fn completed(&self) -> bool {
         self.completed
     }
-}
 
-impl<Event: Clone> TriggerCondition<Event> {
-    pub fn subscriptions(&self) -> Vec<Event> {
+    pub(crate) fn execute_event(
+        &mut self,
+        event: &Event,
+    ) -> (Vec<TriggerConditionUpdate<Event::Identifier>>, bool, f64) {
+        assert!(!self.completed);
+        let (trigger_condition_update, result, current_progress) = self.kind.execute_event(event);
+        self.current_progress = current_progress;
+        self.completed = result;
+        (trigger_condition_update, result, current_progress)
+    }
+
+    pub(crate) fn subscriptions(&self) -> Vec<Event::Identifier> {
         if self.completed {
             return Default::default();
         }
 
         match &self.kind {
             TriggerConditionKind::None => Default::default(),
-            TriggerConditionKind::EventCount { event, .. } => vec![event.clone()],
+            TriggerConditionKind::EventCount { identifier, .. } => vec![identifier.clone()],
+            TriggerConditionKind::Geq { event, .. } => vec![event.identifier()],
             TriggerConditionKind::Sequence {
                 current_index,
                 conditions,
@@ -99,25 +113,12 @@ impl<Event: Clone> TriggerCondition<Event> {
     }
 }
 
-impl<Event: TriggerEvent> TriggerCondition<Event> {
-    pub(crate) fn execute_event(
-        &mut self,
-        event: &Event,
-    ) -> (Vec<TriggerConditionUpdate<Event>>, bool, f64) {
-        assert!(!self.completed);
-        let (trigger_condition_update, result, current_progress) = self.kind.execute_event(event);
-        assert!(current_progress.is_finite());
-        self.current_progress = current_progress;
-        self.completed = result;
-        (trigger_condition_update, result, current_progress)
-    }
-}
-
-impl<Event> TriggerConditionKind<Event> {
+impl<Event: TriggerEvent> TriggerConditionKind<Event> {
     fn required_progress(&self) -> f64 {
         match self {
             TriggerConditionKind::None => 0.0,
             TriggerConditionKind::EventCount { required, .. } => *required as f64,
+            TriggerConditionKind::Geq { .. } => 1.0,
             TriggerConditionKind::Sequence { conditions, .. } => conditions
                 .iter()
                 .map(|condition| condition.required_progress())
@@ -161,6 +162,7 @@ impl<Event> TriggerConditionKind<Event> {
             TriggerConditionKind::EventCount {
                 count, required, ..
             } => count >= required,
+            TriggerConditionKind::Geq { fulfilled, .. } => *fulfilled,
             TriggerConditionKind::Sequence {
                 current_index,
                 conditions,
@@ -174,18 +176,20 @@ impl<Event> TriggerConditionKind<Event> {
             } => fulfilled_conditions.len() >= *n,
         }
     }
-}
 
-impl<Event: TriggerEvent> TriggerConditionKind<Event> {
-    fn execute_event(&mut self, event: &Event) -> (Vec<TriggerConditionUpdate<Event>>, bool, f64) {
+    fn execute_event(
+        &mut self,
+        event: &Event,
+    ) -> (Vec<TriggerConditionUpdate<Event::Identifier>>, bool, f64) {
         match self {
             TriggerConditionKind::None => (Default::default(), true, 0.0),
             TriggerConditionKind::EventCount {
-                event: counted_event,
+                identifier: counted_identifier,
                 count,
                 required,
             } => {
-                if counted_event == event {
+                let identifier = event.identifier();
+                if *counted_identifier == identifier {
                     assert!(count < required);
                     *count += 1;
                 }
@@ -193,12 +197,36 @@ impl<Event: TriggerEvent> TriggerConditionKind<Event> {
                 assert!(count <= required);
                 if count == required {
                     (
-                        vec![TriggerConditionUpdate::Unsubscribe(counted_event.clone())],
+                        vec![TriggerConditionUpdate::Unsubscribe(
+                            counted_identifier.clone(),
+                        )],
                         true,
                         *count as f64,
                     )
                 } else {
                     (Default::default(), count >= required, *count as f64)
+                }
+            }
+            TriggerConditionKind::Geq {
+                event: reference_event,
+                fulfilled,
+            } => {
+                assert!(!*fulfilled);
+                if event.value_geq(reference_event).unwrap() {
+                    *fulfilled = true;
+                    (
+                        vec![TriggerConditionUpdate::Unsubscribe(
+                            reference_event.identifier(),
+                        )],
+                        true,
+                        1.0,
+                    )
+                } else {
+                    (
+                        vec![],
+                        false,
+                        event.value_geq_progress(reference_event).unwrap(),
+                    )
                 }
             }
             TriggerConditionKind::Sequence {
