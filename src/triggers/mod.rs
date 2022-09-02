@@ -142,6 +142,15 @@ impl<Event: TriggerEvent> CompiledTriggers<Event> {
             .extend(self.trigger_system.execute_event(event).into_iter());
     }
 
+    pub fn execute_events<'events>(&mut self, events: impl IntoIterator<Item = &'events Event>)
+    where
+        Event: 'events,
+    {
+        events
+            .into_iter()
+            .for_each(|event| self.execute_event(event));
+    }
+
     pub fn consume_action(&mut self) -> Option<Event::Action> {
         self.action_queue.pop_front()
     }
