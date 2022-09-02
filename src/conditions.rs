@@ -2,7 +2,7 @@ use crate::triggers::TriggerEvent;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum TriggerCondition<Event> {
     None,
     EventCount {
@@ -27,7 +27,7 @@ pub enum TriggerCondition<Event> {
     },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct CompiledTriggerCondition<Event: TriggerEvent> {
     pub(crate) kind: CompiledTriggerConditionKind<Event>,
@@ -36,7 +36,7 @@ pub struct CompiledTriggerCondition<Event: TriggerEvent> {
     pub(crate) current_progress: f64,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum CompiledTriggerConditionKind<Event: TriggerEvent> {
     None,
@@ -68,7 +68,7 @@ pub enum CompiledTriggerConditionKind<Event: TriggerEvent> {
     },
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum TriggerConditionUpdate<Identifier> {
     Subscribe(Identifier),

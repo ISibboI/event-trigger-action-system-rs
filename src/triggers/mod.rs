@@ -8,32 +8,32 @@ use std::fmt::Debug;
 
 mod std_lib_implementations;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Triggers<Event, Action> {
     triggers: Vec<Trigger<Event, Action>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct CompiledTriggers<Event: TriggerEvent> {
     trigger_system: TriggerSystem<Event>,
     action_queue: VecDeque<Event::Action>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 struct TriggerSystem<Event: TriggerEvent> {
     triggers: Vec<CompiledTrigger<Event>>,
     subscriptions: BTreeMultiMap<Event::Identifier, usize>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Trigger<Event, Action> {
     condition: TriggerCondition<Event>,
     actions: Vec<Action>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct CompiledTrigger<Event: TriggerEvent> {
     condition: CompiledTriggerCondition<Event>,
