@@ -5,6 +5,10 @@ pub fn none<Event>() -> TriggerCondition<Event> {
     TriggerCondition::None
 }
 
+pub fn never<Event>() -> TriggerCondition<Event> {
+    TriggerCondition::Never
+}
+
 pub fn event_count<Event>(event: Event, required: usize) -> TriggerCondition<Event> {
     TriggerCondition::EventCount { event, required }
 }
