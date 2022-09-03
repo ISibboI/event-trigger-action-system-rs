@@ -17,6 +17,14 @@ pub fn geq<Event>(event: Event) -> TriggerCondition<Event> {
     TriggerCondition::Geq { event }
 }
 
+pub fn and<Event>(conditions: Vec<TriggerCondition<Event>>) -> TriggerCondition<Event> {
+    TriggerCondition::And { conditions }
+}
+
+pub fn or<Event>(conditions: Vec<TriggerCondition<Event>>) -> TriggerCondition<Event> {
+    TriggerCondition::Or { conditions }
+}
+
 pub fn sequence<Event>(conditions: Vec<TriggerCondition<Event>>) -> TriggerCondition<Event> {
     TriggerCondition::Sequence { conditions }
 }
