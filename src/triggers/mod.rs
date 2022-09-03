@@ -213,13 +213,9 @@ impl<Event: TriggerEvent> TriggerSystem<Event> {
 }
 
 impl<Event, Action> Trigger<Event, Action> {
-    pub fn new(
-        id_str: impl ToString,
-        condition: TriggerCondition<Event>,
-        actions: Vec<Action>,
-    ) -> Self {
+    pub fn new(id_str: String, condition: TriggerCondition<Event>, actions: Vec<Action>) -> Self {
         Self {
-            id_str: id_str.to_string(),
+            id_str,
             condition,
             actions,
         }

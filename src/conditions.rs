@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone)]
 pub enum TriggerCondition<Event> {
     None,
+    Never,
     EventCount {
         event: Event,
         required: usize,
@@ -40,6 +41,7 @@ pub struct CompiledTriggerCondition<Event: TriggerEvent> {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum CompiledTriggerConditionKind<Event: TriggerEvent> {
     None,
+    Never,
     EventCount {
         identifier: Event::Identifier,
         count: usize,
@@ -82,6 +84,7 @@ impl<Event> TriggerCondition<Event> {
     ) -> CompiledTriggerCondition<CompiledEvent> {
         CompiledTriggerCondition::new(match self {
             TriggerCondition::None => CompiledTriggerConditionKind::None,
+            TriggerCondition::Never => CompiledTriggerConditionKind::Never,
             TriggerCondition::EventCount { event, required } => {
                 CompiledTriggerConditionKind::EventCount {
                     identifier: event_compiler(event).identifier(),
@@ -202,6 +205,7 @@ impl<Event: TriggerEvent> CompiledTriggerCondition<Event> {
 
         match &self.kind {
             CompiledTriggerConditionKind::None => Default::default(),
+            CompiledTriggerConditionKind::Never => Default::default(),
             CompiledTriggerConditionKind::EventCount { identifier, .. } => vec![identifier.clone()],
             CompiledTriggerConditionKind::Geq { event, .. } => vec![event.identifier()],
             CompiledTriggerConditionKind::Sequence {
@@ -228,6 +232,7 @@ impl<Event: TriggerEvent> CompiledTriggerConditionKind<Event> {
     fn required_progress(&self) -> f64 {
         match self {
             CompiledTriggerConditionKind::None => 0.0,
+            CompiledTriggerConditionKind::Never => 1.0,
             CompiledTriggerConditionKind::EventCount { required, .. } => *required as f64,
             CompiledTriggerConditionKind::Geq { .. } => 1.0,
             CompiledTriggerConditionKind::Sequence { conditions, .. } => conditions
@@ -270,6 +275,7 @@ impl<Event: TriggerEvent> CompiledTriggerConditionKind<Event> {
     fn completed(&self) -> bool {
         match self {
             CompiledTriggerConditionKind::None => true,
+            CompiledTriggerConditionKind::Never => false,
             CompiledTriggerConditionKind::EventCount {
                 count, required, ..
             } => count >= required,
@@ -294,6 +300,7 @@ impl<Event: TriggerEvent> CompiledTriggerConditionKind<Event> {
     ) -> (Vec<TriggerConditionUpdate<Event::Identifier>>, bool, f64) {
         match self {
             CompiledTriggerConditionKind::None => (Default::default(), true, 0.0),
+            CompiledTriggerConditionKind::Never => (Default::default(), false, 0.0),
             CompiledTriggerConditionKind::EventCount {
                 identifier: counted_identifier,
                 count,
