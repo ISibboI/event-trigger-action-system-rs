@@ -109,7 +109,6 @@ impl<Event: TriggerEvent> CompiledTriggers<Event> {
             .enumerate()
             .flat_map(|(id, trigger)| {
                 let subscriptions = trigger.subscriptions();
-                assert_eq!(subscriptions.is_empty(), trigger.completed());
                 if trigger.completed() {
                     initial_actions.append(&mut trigger.consume_actions());
                 }
