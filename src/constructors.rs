@@ -1,5 +1,5 @@
-use crate::{TriggerCondition, TriggerEvent};
-use std::ops::{BitAnd, BitOr};
+use crate::TriggerCondition;
+use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign};
 
 pub fn none<Event>() -> TriggerCondition<Event> {
     TriggerCondition::None
@@ -31,6 +31,18 @@ pub fn sequence<Event>(conditions: Vec<TriggerCondition<Event>>) -> TriggerCondi
 
 pub fn any_n<Event>(conditions: Vec<TriggerCondition<Event>>, n: usize) -> TriggerCondition<Event> {
     TriggerCondition::AnyN { conditions, n }
+}
+
+impl<Event: Clone> BitAndAssign for TriggerCondition<Event> {
+    fn bitand_assign(&mut self, rhs: Self) {
+        *self = self.clone() & rhs;
+    }
+}
+
+impl<Event: Clone> BitOrAssign for TriggerCondition<Event> {
+    fn bitor_assign(&mut self, rhs: Self) {
+        *self = self.clone() | rhs;
+    }
 }
 
 impl<Event> BitAnd for TriggerCondition<Event> {
@@ -81,7 +93,7 @@ impl<Event> BitAnd for TriggerCondition<Event> {
     }
 }
 
-impl<Event: TriggerEvent> BitOr for TriggerCondition<Event> {
+impl<Event> BitOr for TriggerCondition<Event> {
     type Output = TriggerCondition<Event>;
 
     fn bitor(self, rhs: Self) -> Self::Output {
