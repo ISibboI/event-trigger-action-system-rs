@@ -30,8 +30,8 @@ struct TriggerSystem<Event: TriggerEvent> {
 #[derive(Debug, Clone)]
 pub struct Trigger<Event, Action> {
     pub id_str: String,
-    condition: TriggerCondition<Event>,
-    actions: Vec<Action>,
+    pub condition: TriggerCondition<Event>,
+    pub actions: Vec<Action>,
 }
 
 #[derive(Debug, Clone)]
