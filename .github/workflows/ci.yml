@@ -42,6 +42,24 @@ jobs:
       - name: cargo format
         uses: actions-rust-lang/rustfmt@v1
 
+  rust_check_msrv:
+    name: Rust check MSRV
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: true
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: 1.60.0
+
+      - name: cargo check
+        run: cargo check --bins --tests --all-features
+
   rust_lint:
     name: Rust lint
     runs-on: ubuntu-latest
