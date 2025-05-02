@@ -1,3 +1,9 @@
+//! # Event Trigger Action System (ETAS)
+//!
+//! The core type is [CompiledTriggers], which provides functions to execute events and to receive actions.
+
+#![warn(missing_docs)]
+
 mod conditions;
 mod constructors;
 mod triggers;

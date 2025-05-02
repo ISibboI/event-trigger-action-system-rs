@@ -2,32 +2,65 @@ use crate::triggers::TriggerEvent;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+/// The (uncompiled) trigger conditions for events.
+///
+/// Each condition triggers at most once.
 #[derive(Debug, Clone)]
 pub enum TriggerCondition<Event> {
+    /// No trigger condition, this condition is always fulfilled.
     None,
+
+    /// The unfulfillable trigger condition. This condition is never fulfilled.
     Never,
+
+    /// Trigger after a certain number of events have been received.
     EventCount {
+        /// The event to count.
         event: Event,
+        /// The amount of times this event needs to be received for the condition to trigger.
         required: usize,
     },
+
     Geq {
         event: Event,
     },
+
+    /// Trigger when the given conditions have been fulfilled in sequence.
+    ///
+    /// This works by having a pointer to the current active condition in the sequence.
+    /// Whenever a condition is fulfilled, the pointer gets moved to the right.
+    /// If it has visited all conditions, then this condition triggers.
     Sequence {
+        /// The sequence of conditions.
         conditions: Vec<TriggerCondition<Event>>,
     },
+
+    /// Triggers after all given conditions have been fulfilled in any order.
+    ///
+    /// Compared to [`Self::Sequence`](TriggerCondition::Sequence), this does not require to fulfil the conditions in any order.
     And {
+        /// The conditions to fulfil.
         conditions: Vec<TriggerCondition<Event>>,
     },
+
+    /// Triggers after one of the given conditions have been fulfilled.
     Or {
+        /// The conditions to fulfil.
         conditions: Vec<TriggerCondition<Event>>,
     },
+
+    /// Triggers after a given number of the given conditions have been fulfilled.
     AnyN {
+        /// The conditions to fulfil.
         conditions: Vec<TriggerCondition<Event>>,
+        /// The amount of conditions that need to be fulfilled.
         n: usize,
     },
 }
 
+/// A compiled trigger condition.
+///
+/// This
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct CompiledTriggerCondition<Event: TriggerEvent> {
@@ -39,7 +72,7 @@ pub struct CompiledTriggerCondition<Event: TriggerEvent> {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum CompiledTriggerConditionKind<Event: TriggerEvent> {
+pub(crate) enum CompiledTriggerConditionKind<Event: TriggerEvent> {
     None,
     Never,
     EventCount {
@@ -78,6 +111,9 @@ pub enum TriggerConditionUpdate<Identifier> {
 }
 
 impl<Event> TriggerCondition<Event> {
+    /// Compile this trigger condition.
+    ///
+    /// Raw event information is transformed into a more compact identifier for a matching compiled event.
     pub fn compile<EventCompiler: Fn(Event) -> CompiledEvent, CompiledEvent: TriggerEvent>(
         self,
         event_compiler: &EventCompiler,
@@ -101,7 +137,8 @@ impl<Event> TriggerCondition<Event> {
                     .into_iter()
                     .map(|condition| {
                         let condition = condition.compile(event_compiler);
-                        assert!(!condition.completed()); // sequences are not allowed to contain `None` conditions.
+                        // Sequences are not allowed to contain `None` conditions.
+                        assert!(!condition.completed());
                         condition
                     })
                     .collect();
@@ -173,15 +210,18 @@ impl<Event: TriggerEvent> CompiledTriggerCondition<Event> {
         }
     }
 
+    /// Returns the required progress of the compiled trigger condition.
     pub fn required_progress(&self) -> f64 {
         self.required_progress
     }
 
+    /// Returns the current progress of the compiled trigger condition.
     pub fn current_progress(&self) -> f64 {
         assert!(self.current_progress.is_finite());
         self.current_progress
     }
 
+    /// Returns true if the compiled trigger condition is completed.
     pub fn completed(&self) -> bool {
         self.completed
     }

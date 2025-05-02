@@ -8,11 +8,16 @@ use std::fmt::Debug;
 
 mod std_lib_implementations;
 
+/// A raw collection of triggers.
 #[derive(Debug, Clone)]
 pub struct Triggers<Event, Action> {
     triggers: Vec<Trigger<Event, Action>>,
 }
 
+/// A compiled collection of triggers.
+///
+/// This is the central type for using the event trigger action system.
+/// Execute events via [`Self::execute_event`], [`Self::execute_events`] and [`Self::execute_owned_events`], and collect actions via [`Self::consume_action`] and [`Self::consume_all_actions`].
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct CompiledTriggers<Event: TriggerEvent> {
@@ -27,34 +32,54 @@ struct TriggerSystem<Event: TriggerEvent> {
     subscriptions: BTreeMultiMap<Event::Identifier, usize>,
 }
 
+/// A raw trigger.
 #[derive(Debug, Clone)]
 pub struct Trigger<Event, Action> {
+    /// A unique identifier of the trigger.
     pub id_str: String,
+    /// The condition for the trigger to trigger.
     pub condition: TriggerCondition<Event>,
+    /// The actions the trigger executes when triggered.
     pub actions: Vec<Action>,
 }
 
+/// A compiled trigger.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct CompiledTrigger<Event: TriggerEvent> {
+    /// A unique identifier of the trigger.
     pub id_str: String,
     condition: CompiledTriggerCondition<Event>,
     actions: Option<Vec<Event::Action>>,
 }
 
+/// A handle of a trigger.
+///
+/// This allows to identify a trigger without worrying about lifetimes.
 #[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, Ord, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct TriggerHandle(usize);
 
+/// A trigger action.
 pub trait TriggerAction: Debug + Clone {}
 
+/// An identifier of a trigger.
+///
+/// This type should be cheap to clone.
 pub trait TriggerIdentifier: Debug + Ord + Clone {}
 
+/// A trigger event.
 #[cfg(not(feature = "serde"))]
 pub trait TriggerEvent: From<Self::Action> {
+    /// The action type used by the trigger event.
     type Action: TriggerAction;
+
+    /// The identifier of a trigger event.
+    ///
+    /// This type should be cheap to clone.
     type Identifier: TriggerIdentifier;
 
+    /// Returns the identifier of this trigger event.
     fn identifier(&self) -> Self::Identifier;
 
     fn value_geq(&self, other: &Self) -> Option<bool>;
@@ -66,9 +91,15 @@ pub trait TriggerEvent: From<Self::Action> {
 
 #[cfg(feature = "serde")]
 pub trait TriggerEvent: From<Self::Action> {
+    /// The action type used by the trigger event.
     type Action: TriggerAction + Serialize + for<'de> Deserialize<'de>;
+
+    /// The identifier of a trigger event.
+    ///
+    /// This type should be cheap to clone.
     type Identifier: TriggerIdentifier + Serialize + for<'de> Deserialize<'de>;
 
+    /// Returns the identifier of this trigger event.
     fn identifier(&self) -> Self::Identifier;
 
     fn value_geq(&self, other: &Self) -> Option<bool>;
@@ -79,10 +110,14 @@ pub trait TriggerEvent: From<Self::Action> {
 }
 
 impl<Event, Action> Triggers<Event, Action> {
+    /// Create a new raw triggers instance.
     pub fn new(triggers: Vec<Trigger<Event, Action>>) -> Self {
         Self { triggers }
     }
 
+    /// Compile the raw triggers.
+    ///
+    /// Events are compiled by the event compiler, and actions are compiled by the action compiler.
     pub fn compile<
         EventCompiler: Fn(Event) -> CompiledEvent,
         CompiledEvent: TriggerEvent,
@@ -102,7 +137,7 @@ impl<Event, Action> Triggers<Event, Action> {
 }
 
 impl<Event: TriggerEvent> CompiledTriggers<Event> {
-    pub fn new(mut triggers: Vec<CompiledTrigger<Event>>) -> Self {
+    pub(crate) fn new(mut triggers: Vec<CompiledTrigger<Event>>) -> Self {
         let mut initial_actions = Vec::new();
         let subscriptions = triggers
             .iter_mut()
@@ -136,11 +171,19 @@ impl<Event: TriggerEvent> CompiledTriggers<Event> {
         }
     }
 
+    /// Execute the given event.
+    ///
+    /// The event is executed right away, and all resulting actions are stored in an internal action queue,
+    /// waiting to be retrieved via [`Self::consume_action`] or [`Self::consume_all_actions`].
     pub fn execute_event(&mut self, event: &Event) {
         self.action_queue
             .extend(self.trigger_system.execute_event(event));
     }
 
+    /// Execute the given events.
+    ///
+    /// The event is executed right away, and all resulting actions are stored in an internal action queue,
+    /// waiting to be retrieved via [`Self::consume_action`] or [`Self::consume_all_actions`].
     pub fn execute_events<'events>(&mut self, events: impl IntoIterator<Item = &'events Event>)
     where
         Event: 'events,
@@ -150,20 +193,33 @@ impl<Event: TriggerEvent> CompiledTriggers<Event> {
             .for_each(|event| self.execute_event(event));
     }
 
+    /// Execute the given owned events.
+    ///
+    /// The event is executed right away, and all resulting actions are stored in an internal action queue,
+    /// waiting to be retrieved via [`Self::consume_action`] or [`Self::consume_all_actions`].
+    ///
+    /// This method is no different from [`Self::execute_events`], except that it drops the given events after execution.
     pub fn execute_owned_events(&mut self, events: impl IntoIterator<Item = Event>) {
         events
             .into_iter()
             .for_each(|event| self.execute_event(&event));
     }
 
+    /// Consume an action from the action queue, if there is one.
     pub fn consume_action(&mut self) -> Option<Event::Action> {
         self.action_queue.pop_front()
     }
 
+    /// Consume all action from the action queue.
+    ///
+    /// If the returned iterator is dropped before all actions are consumed, the remaining actions are dropped quietly.
     pub fn consume_all_actions(&mut self) -> impl '_ + Iterator<Item = Event::Action> {
         self.action_queue.drain(0..self.action_queue.len())
     }
 
+    /// Returns the progress of the given trigger as `(current_progress, required_progress)`.
+    ///
+    /// When `current_progress` reaches `required_progress`, then the trigger triggers.
     pub fn progress(&self, handle: TriggerHandle) -> Option<(f64, f64)> {
         self.trigger_system
             .triggers
@@ -212,6 +268,7 @@ impl<Event: TriggerEvent> TriggerSystem<Event> {
 }
 
 impl<Event, Action> Trigger<Event, Action> {
+    /// Creates a new raw trigger.
     pub fn new(id_str: String, condition: TriggerCondition<Event>, actions: Vec<Action>) -> Self {
         Self {
             id_str,
@@ -220,6 +277,9 @@ impl<Event, Action> Trigger<Event, Action> {
         }
     }
 
+    /// Compiles this trigger.
+    ///
+    /// Events are compiled by the event compiler, and actions are compiled by the action compiler.
     pub fn compile<
         EventCompiler: Fn(Event) -> CompiledEvent,
         CompiledEvent: TriggerEvent,
@@ -229,16 +289,16 @@ impl<Event, Action> Trigger<Event, Action> {
         event_compiler: &EventCompiler,
         action_compiler: &ActionCompiler,
     ) -> CompiledTrigger<CompiledEvent> {
-        CompiledTrigger {
-            id_str: self.id_str,
-            condition: self.condition.compile(event_compiler),
-            actions: Some(self.actions.into_iter().map(action_compiler).collect()),
-        }
+        CompiledTrigger::new(
+            self.id_str,
+            self.condition.compile(event_compiler),
+            self.actions.into_iter().map(action_compiler).collect(),
+        )
     }
 }
 
 impl<Event: TriggerEvent> CompiledTrigger<Event> {
-    pub fn new(
+    pub(crate) fn new(
         id_str: String,
         condition: CompiledTriggerCondition<Event>,
         actions: Vec<Event::Action>,
@@ -250,11 +310,11 @@ impl<Event: TriggerEvent> CompiledTrigger<Event> {
         }
     }
 
-    pub fn subscriptions(&self) -> Vec<Event::Identifier> {
+    pub(crate) fn subscriptions(&self) -> Vec<Event::Identifier> {
         self.condition.subscriptions()
     }
 
-    pub fn execute_event(
+    pub(crate) fn execute_event(
         &mut self,
         event: &Event,
     ) -> (
@@ -269,22 +329,24 @@ impl<Event: TriggerEvent> CompiledTrigger<Event> {
         }
     }
 
-    pub fn progress(&self) -> (f64, f64) {
+    pub(crate) fn progress(&self) -> (f64, f64) {
         (
             self.condition.current_progress(),
             self.condition.required_progress(),
         )
     }
 
-    pub fn condition(&self) -> &CompiledTriggerCondition<Event> {
+    /// Returns the trigger condition of this trigger.
+    pub(crate) fn condition(&self) -> &CompiledTriggerCondition<Event> {
         &self.condition
     }
 
-    pub fn actions(&self) -> &[Event::Action] {
+    /// Returns the actions of this trigger.
+    pub(crate) fn actions(&self) -> &[Event::Action] {
         self.actions.as_deref().unwrap_or(&[])
     }
 
-    pub fn completed(&self) -> bool {
+    pub(crate) fn completed(&self) -> bool {
         self.condition.completed()
     }
 
