@@ -138,7 +138,7 @@ impl<Event: TriggerEvent> CompiledTriggers<Event> {
 
     pub fn execute_event(&mut self, event: &Event) {
         self.action_queue
-            .extend(self.trigger_system.execute_event(event).into_iter());
+            .extend(self.trigger_system.execute_event(event));
     }
 
     pub fn execute_events<'events>(&mut self, events: impl IntoIterator<Item = &'events Event>)
