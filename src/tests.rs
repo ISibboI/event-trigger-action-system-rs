@@ -1,6 +1,8 @@
-use event_trigger_action_system::{
-    event_count, geq, none, sequence, Trigger, TriggerAction, TriggerConditionUpdate, TriggerEvent,
-    TriggerIdentifier, Triggers,
+use std::cmp::Ordering;
+
+use crate::{
+    conditions::TriggerConditionUpdate, event_count, geq, none, sequence, Trigger, TriggerAction,
+    TriggerEvent, TriggerIdentifier, Triggers,
 };
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -15,7 +17,7 @@ enum GameAction {
     DeactivateMonster { id: MonsterHandle },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 enum GameEvent {
     Action(GameAction),
@@ -62,8 +64,12 @@ impl TriggerEvent for GameEvent {
         }
     }
 
-    fn value_geq(&self, other: &Self) -> Option<bool> {
+    fn partial_cmp_progress(&self, other: &Self, target_ordering: Ordering) -> Option<f64> {
         match (self, other) {
+            (
+                GameEvent::MonsterHealthChanged { id: id_self, .. },
+                GameEvent::MonsterHealthChanged { id: id_other, .. },
+            ) if id_self != id_other => None,
             (
                 GameEvent::HealthChanged {
                     health: health_self,
@@ -81,13 +87,27 @@ impl TriggerEvent for GameEvent {
                     health: health_other,
                     ..
                 },
-            ) => Some(health_self >= health_other),
+            ) => Some(
+                match target_ordering {
+                    Ordering::Less => (*health_other - 1) as f64 / *health_self as f64,
+                    Ordering::Equal => (*health_self as f64 / *health_other as f64)
+                        .min(*health_other as f64 / *health_self as f64),
+                    Ordering::Greater => *health_self as f64 / (*health_other + 1) as f64,
+                }
+                .clamp(0.0, 1.0),
+            ),
             _ => None,
         }
     }
+}
 
-    fn value_geq_progress(&self, other: &Self) -> Option<f64> {
+impl PartialOrd for GameEvent {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         match (self, other) {
+            (
+                GameEvent::MonsterHealthChanged { id: id_self, .. },
+                GameEvent::MonsterHealthChanged { id: id_other, .. },
+            ) if id_self != id_other => None,
             (
                 GameEvent::HealthChanged {
                     health: health_self,
@@ -105,7 +125,7 @@ impl TriggerEvent for GameEvent {
                     health: health_other,
                     ..
                 },
-            ) => Some((*health_self as f64 / *health_other as f64).clamp(0.0, 1.0)),
+            ) => Some(health_self.cmp(health_other)),
             _ => None,
         }
     }

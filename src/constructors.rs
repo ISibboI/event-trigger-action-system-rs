@@ -16,8 +16,29 @@ pub fn event_count<Event>(event: Event, required: usize) -> TriggerCondition<Eve
     TriggerCondition::EventCount { event, required }
 }
 
-pub fn geq<Event>(event: Event) -> TriggerCondition<Event> {
-    TriggerCondition::Geq { event }
+/// Constructs a trigger condition that triggers after an event has been received that is greater than the reference event.
+pub fn gt<Event>(reference_event: Event) -> TriggerCondition<Event> {
+    TriggerCondition::Greater { reference_event }
+}
+
+/// Constructs a trigger condition that triggers after an event has been received that is greater than or equal to the reference event.
+pub fn geq<Event>(reference_event: Event) -> TriggerCondition<Event> {
+    TriggerCondition::GreaterOrEqual { reference_event }
+}
+
+/// Constructs a trigger condition that triggers after an event has been received that is equal to the reference event.
+pub fn eq<Event>(reference_event: Event) -> TriggerCondition<Event> {
+    TriggerCondition::Equal { reference_event }
+}
+
+/// Constructs a trigger condition that triggers after an event has been received that is less than or equal to the reference event.
+pub fn leq<Event>(reference_event: Event) -> TriggerCondition<Event> {
+    TriggerCondition::LessOrEqual { reference_event }
+}
+
+/// Constructs a trigger condition that triggers after an event has been received that is less than the reference event.
+pub fn lt<Event>(reference_event: Event) -> TriggerCondition<Event> {
+    TriggerCondition::Less { reference_event }
 }
 
 /// Constructs a trigger condition that triggers after all given conditions have triggered.

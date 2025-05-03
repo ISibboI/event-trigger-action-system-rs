@@ -3,6 +3,7 @@ use crate::TriggerCondition;
 use btreemultimap_value_ord::BTreeMultiMap;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
 use std::collections::{BTreeMap, VecDeque};
 use std::fmt::Debug;
 
@@ -70,7 +71,7 @@ pub trait TriggerIdentifier: Debug + Ord + Clone {}
 
 /// A trigger event.
 #[cfg(not(feature = "serde"))]
-pub trait TriggerEvent: From<Self::Action> {
+pub trait TriggerEvent: From<Self::Action> + PartialOrd {
     /// The action type used by the trigger event.
     type Action: TriggerAction;
 
@@ -82,11 +83,9 @@ pub trait TriggerEvent: From<Self::Action> {
     /// Returns the identifier of this trigger event.
     fn identifier(&self) -> Self::Identifier;
 
-    fn value_geq(&self, other: &Self) -> Option<bool>;
-
-    /// Returns a number between 0.0 and 1.0 indicating how close the condition `value_geq` is to being fulfilled.
-    /// Except if the events are not compatible, then `None` is returned.
-    fn value_geq_progress(&self, other: &Self) -> Option<f64>;
+    /// Returns a number between 0.0 and 1.0 indicating how close the ordering of this and other is to the target ordering.
+    /// If the events are not ordered, then `None` is returned.
+    fn partial_cmp_progress(&self, other: &Self, target_ordering: Ordering) -> Option<f64>;
 }
 
 #[cfg(feature = "serde")]
@@ -102,11 +101,9 @@ pub trait TriggerEvent: From<Self::Action> {
     /// Returns the identifier of this trigger event.
     fn identifier(&self) -> Self::Identifier;
 
-    fn value_geq(&self, other: &Self) -> Option<bool>;
-
-    /// Returns a number between 0.0 and 1.0 indicating how close the condition `value_geq` is to being fulfilled.
-    /// Except if the events are not compatible, then `None` is returned.
-    fn value_geq_progress(&self, other: &Self) -> Option<f64>;
+    /// Returns a number between 0.0 and 1.0 indicating how close the ordering of this and other is to the target ordering.
+    /// If the events are not ordered, then `None` is returned.
+    fn partial_cmp_progress(&self, other: &Self, target_ordering: Ordering) -> Option<f64>;
 }
 
 impl<Event, Action> Triggers<Event, Action> {
@@ -337,11 +334,13 @@ impl<Event: TriggerEvent> CompiledTrigger<Event> {
     }
 
     /// Returns the trigger condition of this trigger.
+    #[allow(dead_code)]
     pub(crate) fn condition(&self) -> &CompiledTriggerCondition<Event> {
         &self.condition
     }
 
     /// Returns the actions of this trigger.
+    #[allow(dead_code)]
     pub(crate) fn actions(&self) -> &[Event::Action] {
         self.actions.as_deref().unwrap_or(&[])
     }
