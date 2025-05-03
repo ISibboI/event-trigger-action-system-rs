@@ -1,5 +1,5 @@
-use crate::conditions::{CompiledTriggerCondition, TriggerConditionUpdate};
 use crate::TriggerCondition;
+use crate::conditions::{CompiledTriggerCondition, TriggerConditionUpdate};
 use btreemultimap_value_ord::BTreeMultiMap;
 use conditional_serde::ConditionalSerde;
 #[cfg(feature = "serde")]

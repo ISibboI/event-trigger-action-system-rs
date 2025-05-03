@@ -2,11 +2,11 @@
 name = "event-trigger-action-system"
 description = "A system that triggers actions based on events with user-programmable triggers"
 version = "0.7.6"
-edition = "2021"
+edition = "2024"
 license = "BSD-2-Clause"
 repository = "https://github.com/ISibboI/event-trigger-action-system-rs"
 
-rust-version = "1.60.0"
+rust-version = "1.85.1"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

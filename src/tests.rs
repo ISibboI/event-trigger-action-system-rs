@@ -1,8 +1,8 @@
 use std::cmp::Ordering;
 
 use crate::{
-    conditions::TriggerConditionUpdate, event_count, geq, none, sequence, Trigger, TriggerAction,
-    TriggerEvent, TriggerIdentifier, Triggers,
+    Trigger, TriggerAction, TriggerEvent, TriggerIdentifier, Triggers,
+    conditions::TriggerConditionUpdate, event_count, geq, none, sequence,
 };
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
