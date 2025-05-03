@@ -1,6 +1,7 @@
 use crate::conditions::{CompiledTriggerCondition, TriggerConditionUpdate};
 use crate::TriggerCondition;
 use btreemultimap_value_ord::BTreeMultiMap;
+use conditional_serde::ConditionalSerde;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
@@ -70,33 +71,14 @@ pub trait TriggerAction: Debug + Clone {}
 pub trait TriggerIdentifier: Debug + Ord + Clone {}
 
 /// A trigger event.
-#[cfg(not(feature = "serde"))]
 pub trait TriggerEvent: From<Self::Action> + PartialOrd {
     /// The action type used by the trigger event.
-    type Action: TriggerAction;
+    type Action: TriggerAction + ConditionalSerde;
 
     /// The identifier of a trigger event.
     ///
     /// This type should be cheap to clone.
-    type Identifier: TriggerIdentifier;
-
-    /// Returns the identifier of this trigger event.
-    fn identifier(&self) -> Self::Identifier;
-
-    /// Returns a number between 0.0 and 1.0 indicating how close the ordering of this and other is to the target ordering.
-    /// If the events are not ordered, then `None` is returned.
-    fn partial_cmp_progress(&self, other: &Self, target_ordering: Ordering) -> Option<f64>;
-}
-
-#[cfg(feature = "serde")]
-pub trait TriggerEvent: From<Self::Action> {
-    /// The action type used by the trigger event.
-    type Action: TriggerAction + Serialize + for<'de> Deserialize<'de>;
-
-    /// The identifier of a trigger event.
-    ///
-    /// This type should be cheap to clone.
-    type Identifier: TriggerIdentifier + Serialize + for<'de> Deserialize<'de>;
+    type Identifier: TriggerIdentifier + ConditionalSerde;
 
     /// Returns the identifier of this trigger event.
     fn identifier(&self) -> Self::Identifier;

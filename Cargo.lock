@@ -12,10 +12,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "conditional_serde"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "269a4badb7a08659103c2ac761f67c6039473b690261effbb4ee656dd8f77f27"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "event-trigger-action-system"
 version = "0.7.6"
 dependencies = [
  "btreemultimap-value-ord",
+ "conditional_serde",
  "serde",
 ]
 

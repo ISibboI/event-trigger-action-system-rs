@@ -13,6 +13,11 @@ rust-version = "1.60.0"
 [dependencies]
 btreemultimap-value-ord = "0.4.0"
 serde = { version = "1.0.219", features = ["derive"], optional = true }
+conditional_serde = { version = "1.0.0", features = ["autotrait"] }
 
 [features]
-serde = ["btreemultimap-value-ord/serde", "dep:serde"]
+serde = [
+    "btreemultimap-value-ord/serde",
+    "dep:serde",
+    "conditional_serde/serde",
+]

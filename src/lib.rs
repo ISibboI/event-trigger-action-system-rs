@@ -3,6 +3,7 @@
 //! The core type is [CompiledTriggers], which provides functions to execute events and to receive actions.
 
 #![warn(missing_docs)]
+#![deny(clippy::mod_module_files)]
 
 mod conditions;
 mod constructors;
