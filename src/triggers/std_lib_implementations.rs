@@ -1,11 +1,11 @@
 use std::cmp::Ordering;
 
-use crate::triggers::TriggerIdentifier;
+use crate::triggers::TriggerEventIdentifier;
 use crate::{TriggerAction, TriggerEvent};
 
 impl TriggerAction for () {}
 
-impl TriggerIdentifier for () {}
+impl TriggerEventIdentifier for () {}
 
 impl TriggerEvent for () {
     type Action = ();

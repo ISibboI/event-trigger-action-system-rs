@@ -67,8 +67,15 @@ pub trait TriggerAction: Debug + Clone {}
 
 /// An identifier of a trigger.
 ///
+/// This is used to compare triggers while ignoring their progress towards fulfilling a comparison.
+/// Hence, the identifier should ignore all data that is used to make a comparison between [`TriggerEvents`](TriggerEvent),
+/// but keep all data that is used to decide comparability between [`TriggerEvents`](TriggerEvent).
+///
+/// Formally, the following invariant must be fulfilled: if [`partial_cmp`](PartialOrd::partial_cmp) between two trigger events returns `None`,
+/// then their identifiers must be different, and vice versa.
+///
 /// This type should be cheap to clone.
-pub trait TriggerIdentifier: Debug + Ord + Clone {}
+pub trait TriggerEventIdentifier: Debug + Ord + Clone {}
 
 /// A trigger event.
 pub trait TriggerEvent: From<Self::Action> + PartialOrd {
@@ -77,8 +84,8 @@ pub trait TriggerEvent: From<Self::Action> + PartialOrd {
 
     /// The identifier of a trigger event.
     ///
-    /// This type should be cheap to clone.
-    type Identifier: TriggerIdentifier + ConditionalSerde;
+    /// See [`TriggerIdentifier`] for details.
+    type Identifier: TriggerEventIdentifier + ConditionalSerde;
 
     /// Returns the identifier of this trigger event.
     fn identifier(&self) -> Self::Identifier;

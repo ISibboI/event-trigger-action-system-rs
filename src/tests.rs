@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 
 use crate::{
-    Trigger, TriggerAction, TriggerEvent, TriggerIdentifier, Triggers,
+    Trigger, TriggerAction, TriggerEvent, TriggerEventIdentifier, Triggers,
     conditions::TriggerConditionUpdate, event_count, geq, none, sequence,
 };
 #[cfg(feature = "serde")]
@@ -46,7 +46,7 @@ struct MonsterHandle(usize);
 
 impl TriggerAction for GameAction {}
 
-impl TriggerIdentifier for GameEventIdentifier {}
+impl TriggerEventIdentifier for GameEventIdentifier {}
 
 impl TriggerEvent for GameEvent {
     type Action = GameAction;

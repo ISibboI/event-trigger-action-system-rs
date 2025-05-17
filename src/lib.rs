@@ -16,6 +16,6 @@ pub use crate::constructors::{
     and, any_n, eq, event_count, geq, gt, leq, lt, never, none, or, sequence,
 };
 pub use crate::triggers::{
-    CompiledTrigger, CompiledTriggers, Trigger, TriggerAction, TriggerEvent, TriggerHandle,
-    TriggerIdentifier, Triggers,
+    CompiledTrigger, CompiledTriggers, Trigger, TriggerAction, TriggerEvent,
+    TriggerEventIdentifier, TriggerHandle, Triggers,
 };
