@@ -84,7 +84,7 @@ pub trait TriggerEvent: From<Self::Action> + PartialOrd {
 
     /// The identifier of a trigger event.
     ///
-    /// See [`TriggerIdentifier`] for details.
+    /// See [`TriggerEventIdentifier`] for details.
     type Identifier: TriggerEventIdentifier + ConditionalSerde;
 
     /// Returns the identifier of this trigger event.
