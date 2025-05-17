@@ -22,7 +22,7 @@ dependencies = [
 
 [[package]]
 name = "event-trigger-action-system"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "btreemultimap-value-ord",
  "conditional_serde",
