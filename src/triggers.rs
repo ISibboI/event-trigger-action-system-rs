@@ -92,7 +92,17 @@ pub trait TriggerEvent: From<Self::Action> + PartialOrd {
 
     /// Returns a number between 0.0 and 1.0 indicating how close the ordering of this and other is to the target ordering.
     /// If the events are not ordered, then `None` is returned.
-    fn partial_cmp_progress(&self, other: &Self, target_ordering: Ordering) -> Option<f64>;
+    ///
+    /// If progress reporting is not needed when using this library, feel free to stick with the default implementation of this method.
+    fn partial_cmp_progress(&self, other: &Self, target_ordering: Ordering) -> Option<f64> {
+        self.partial_cmp(other).map(|ordering| {
+            if ordering == target_ordering {
+                1.0
+            } else {
+                0.0
+            }
+        })
+    }
 }
 
 impl<Event, Action> Triggers<Event, Action> {
